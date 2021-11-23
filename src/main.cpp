@@ -1,26 +1,35 @@
 #include <Arduino.h>
 #include <BLEMidi.h>
 
-#define SENSOR 4
+#define SIGNAL_IN 4
+#define LED 2
 
 int count = 0;
 int highest = 127;
 int last_note = 0;
 
+bool led_on = false;
+
 void IRAM_ATTR isr()
 {
   count += 1;
+  led_on = !led_on;
+  digitalWrite(LED, led_on);
 }
 
 void setup()
 {
   Serial.begin(115200);
-  pinMode(SENSOR, INPUT);
-  attachInterrupt(SENSOR, isr, RISING);
+
+  // init IO
+  pinMode(SIGNAL_IN, INPUT);
+  pinMode(LED, OUTPUT);
+  attachInterrupt(SIGNAL_IN, isr, CHANGE);
+
   Serial.println("Initializing bluetooth");
-  BLEMidiServer.begin("Basic MIDI device");
+  BLEMidiServer.begin("BioMIDI");
   Serial.println("Waiting for connections...");
-  BLEMidiServer.enableDebugging();
+  //BLEMidiServer.enableDebugging();
 }
 
 void loop()
