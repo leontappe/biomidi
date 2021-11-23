@@ -4,17 +4,35 @@
 #define SIGNAL_IN 4
 #define LED 2
 
-int count = 0;
-int highest = 127;
-int last_note = 0;
+int last_millis = millis();
+
+int midi_value = 0;
+int last_value = 0;
+
+int max_frequency = 127;
 
 bool led_on = false;
 
 void IRAM_ATTR isr()
 {
-  count += 1;
-  led_on = !led_on;
-  digitalWrite(LED, led_on);
+  int current = millis();
+  int diff = current - last_millis;
+  last_millis = current;
+  if (diff > 1)
+  {
+    double frequency = 1000.0 / diff;
+    midi_value = frequency * 127 / max_frequency;
+    if (midi_value > 127)
+    {
+      midi_value = 127;
+    }
+    if (frequency > max_frequency)
+    {
+      max_frequency = frequency;
+    }
+    led_on = !led_on;
+    digitalWrite(LED, led_on);
+  }
 }
 
 void setup()
@@ -34,30 +52,18 @@ void setup()
 
 void loop()
 {
-  // reset freq after 1 second
-  static uint32_t lastMillis = 0;
-  if (millis() - lastMillis > 1000)
+  if (BLEMidiServer.isConnected())
   {
-    lastMillis = millis();
-    if (count > highest)
+    BLEMidiServer.noteOff(0, last_value, 127);
+    if (millis() - last_millis < 500)
     {
-      highest = count;
+      Serial.printf("playing midi note %d\n", midi_value);
+      BLEMidiServer.noteOn(0, midi_value, 127);
+
+      BLEMidiServer.controlChange(0, 1, midi_value);
+
+      last_value = midi_value;
     }
-    if (count > 0 && BLEMidiServer.isConnected())
-    {
-      BLEMidiServer.noteOff(0, last_note, 127);
-
-      Serial.printf("receiving %d Hz\n", count);
-      uint8_t midi_note = abs((double)count * 127.0 / (double)highest);
-
-      Serial.printf("playing midi note %d\n", midi_note);
-      BLEMidiServer.noteOn(0, midi_note, 127);
-
-      BLEMidiServer.controlChange(0, 1, midi_note);
-
-      last_note = midi_note;
-    }
-    // reset counter
-    count = 0;
   }
+  delay(50);
 }
